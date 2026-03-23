@@ -52,7 +52,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text(
-                  'Enter your name (max 10 characters)',
+                  'Įveskite savo vardą (daugiausiai 10 simbolių)',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
@@ -61,7 +61,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                   controller: controller,
                   maxLength: 10,
                   decoration: const InputDecoration(
-                    labelText: 'Name',
+                    labelText: 'Vardas',
                     border: OutlineInputBorder(),
                   ),
                   onSubmitted: (_) => onSubmit(),
@@ -75,7 +75,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                           width: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('Continue'),
+                      : const Text('Tęsti'),
                 ),
               ],
             ),
@@ -85,4 +85,3 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     );
   }
 }
-

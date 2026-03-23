@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/room_models.dart';
-import '../services/supabase_service.dart';
 import '../state/app_providers.dart';
 import 'home_screen.dart';
 import 'lobby_screen.dart';
@@ -14,6 +13,7 @@ class LeaderboardScreen extends ConsumerStatefulWidget {
   final String userId;
   final String playerName;
   final bool isHost;
+  final String roomCode;
 
   const LeaderboardScreen({
     super.key,
@@ -21,6 +21,7 @@ class LeaderboardScreen extends ConsumerStatefulWidget {
     required this.userId,
     required this.playerName,
     required this.isHost,
+    required this.roomCode,
   });
 
   @override
@@ -29,6 +30,7 @@ class LeaderboardScreen extends ConsumerStatefulWidget {
 
 class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
   List<RoomPlayerModel> playersFinished = [];
+  bool allPlayersFinished = false;
 
   StreamSubscription? playersSub;
   StreamSubscription? roomSub;
@@ -50,11 +52,6 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
   Future<void> _init() async {
     final supabase = ref.read(supabaseServiceProvider);
     final initialRoom = await supabase.fetchRoom(roomId: widget.roomId);
-    final initialPlayers = await supabase.fetchPlayers(roomId: widget.roomId);
-
-    setState(() {
-      playersFinished = _rankedFinished(initialPlayers);
-    });
 
     roomSub = supabase
         .roomRowStream(roomId: widget.roomId, initialRoom: initialRoom)
@@ -73,20 +70,19 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
             userId: widget.userId,
             playerName: widget.playerName,
             isHost: widget.isHost,
+            roomCode: widget.roomCode,
           ),
         ),
       );
     });
 
-    playersSub = supabase
-        .playerRowsStream(
-          roomId: widget.roomId,
-          initialPlayers: initialPlayers,
-        )
-        .listen((rows) {
+    playersSub = supabase.playerRowsStream(roomId: widget.roomId).listen((rows) {
       if (!mounted) return;
+      final allPlayers = rows.map((e) => RoomPlayerModel.fromJson(e)).toList();
+      final allFinished = allPlayers.every((p) => p.finished);
       setState(() {
         playersFinished = _rankedFinished(rows);
+        allPlayersFinished = allFinished;
       });
     });
   }
@@ -112,23 +108,33 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Leaderboard'),
+        title: const Text('Rezultatai'),
       ),
       body: SafeArea(
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SizedBox(height: 8),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 18),
-              child: Text(
-                'Live Rankings',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+            if (!allPlayersFinished)
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                child: Text(
+                  'Jūs baigėte! Laukiama, kol kiti žaidėjai baigs viktoriną...',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
               ),
-            ),
+            if (!allPlayersFinished)
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 18),
+                child: Text(
+                  'Baigusių žaidėjų rezultatai',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+                ),
+              ),
             const SizedBox(height: 12),
             Expanded(
               child: playersFinished.isEmpty
-                  ? const Center(child: Text('Waiting for other players...'))
+                  ? const Center(child: Text('Laukiama rezultatų...'))
                   : ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 18),
                       itemCount: playersFinished.length,
@@ -164,7 +170,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
             SizedBox(
               width: 44,
               child: Text(
-                '#$rank',
+                '$rank.',
                 style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
               ),
             ),
@@ -199,7 +205,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
           children: [
             Expanded(
               child: OutlinedButton(
-                onPressed: widget.isHost
+                onPressed: widget.isHost && allPlayersFinished
                     ? () async {
                         didNavigateBackToLobby = true;
                         // Start next round: clear everyone back to Lobby state.
@@ -216,12 +222,13 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                               userId: widget.userId,
                               playerName: widget.playerName,
                               isHost: true,
+                              roomCode: widget.roomCode,
                             ),
                           ),
                         );
                       }
                     : null,
-                child: const Text('Next Game'),
+                child: const Text('Žaisti dar kartą'),
               ),
             ),
             const SizedBox(width: 12),
@@ -236,7 +243,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                     ),
                   );
                 },
-                child: const Text('Finish'),
+                child: const Text('Baigti'),
               ),
             ),
           ],
@@ -245,4 +252,3 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
     );
   }
 }
-

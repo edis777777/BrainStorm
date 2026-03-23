@@ -3,10 +3,8 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 
 import '../models/room_models.dart';
-import '../services/supabase_service.dart';
 import '../state/app_providers.dart';
 import 'game_screen.dart';
 import 'leaderboard_screen.dart';
@@ -16,6 +14,7 @@ class LobbyScreen extends ConsumerStatefulWidget {
   final String userId;
   final String playerName;
   final bool isHost;
+  final String roomCode;
 
   const LobbyScreen({
     super.key,
@@ -23,6 +22,7 @@ class LobbyScreen extends ConsumerStatefulWidget {
     required this.userId,
     required this.playerName,
     required this.isHost,
+    required this.roomCode,
   });
 
   @override
@@ -50,16 +50,12 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
     final supabase = ref.read(supabaseServiceProvider);
 
     final initialRoom = await supabase.fetchRoom(roomId: widget.roomId);
-    final initialPlayers = await supabase.fetchPlayers(roomId: widget.roomId);
 
     final roomModel = RoomModel.fromJson(initialRoom);
-    final mappedPlayers = initialPlayers.map((e) => RoomPlayerModel.fromJson(e)).toList()
-      ..sort((a, b) => a.playerName.compareTo(b.playerName));
 
     if (!mounted) return;
     setState(() {
       room = roomModel;
-      players = mappedPlayers;
     });
 
     roomSub = supabase
@@ -73,13 +69,10 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
       });
     });
 
-    playersSub = supabase
-        .playerRowsStream(roomId: widget.roomId, initialPlayers: initialPlayers)
-        .listen((rows) {
+    playersSub = supabase.playerRowsStream(roomId: widget.roomId).listen((rows) {
       if (!mounted) return;
       setState(() {
-        players = rows.map((e) => RoomPlayerModel.fromJson(e)).toList()
-          ..sort((a, b) => a.playerName.compareTo(b.playerName));
+        players = rows.map((e) => RoomPlayerModel.fromJson(e)).toList();
       });
 
       final me = players.where((p) => p.userId == widget.userId).firstOrNull;
@@ -95,6 +88,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                 userId: widget.userId,
                 playerName: widget.playerName,
                 isHost: widget.isHost,
+                roomCode: widget.roomCode,
               ),
             ),
           );
@@ -106,6 +100,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                 roomId: widget.roomId,
                 userId: widget.userId,
                 playerName: widget.playerName,
+                roomCode: widget.roomCode,
               ),
             ),
           );
@@ -133,18 +128,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Room Lobby'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Center(
-              child: Text(
-                r != null ? 'Code: ${r.code}' : '',
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-          ),
-        ],
+        title: const Text('Kambario laukiamasis'),
       ),
       body: SafeArea(
         child: r == null || me == null
@@ -154,7 +138,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     final twoCol = constraints.maxWidth > 800;
-                    return twoCol ? _twoColumn(gameStarted, myReady, myStarted, myFinished, r!.code) : _singleColumn(gameStarted, myReady, myStarted, myFinished, r!.code);
+                    return twoCol ? _twoColumn(gameStarted, myReady, myStarted, myFinished, r.code) : _singleColumn(gameStarted, myReady, myStarted, myFinished, r.code);
                   },
                 ),
               ),
@@ -166,10 +150,10 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (widget.isHost) _hostQr(code),
+        _displayRoomCode(code),
         const SizedBox(height: 14),
         Text(
-          gameStarted ? 'Game started' : 'Waiting for players',
+          gameStarted ? 'Žaidimas prasidėjo' : 'Laukiama žaidėjų',
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
         ),
         const SizedBox(height: 10),
@@ -190,7 +174,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
         const SizedBox(width: 18),
         SizedBox(width: 260, child: Column(
           children: [
-            if (widget.isHost) _hostQr(code) else const SizedBox.shrink(),
+            _displayRoomCode(code),
             const SizedBox(height: 14),
             if (!gameStarted) _readyButton(myReady)
             else if (!myStarted && !myFinished) _individualStartButton()
@@ -202,7 +186,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
     );
   }
 
-  Widget _hostQr(String code) {
+  Widget _displayRoomCode(String code) {
     return Card(
       color: Colors.white10,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
@@ -210,11 +194,9 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
         padding: const EdgeInsets.all(14),
         child: Column(
           children: [
-            const Text('Host QR', style: TextStyle(fontWeight: FontWeight.w900)),
+            const Text('Kambario kodas', style: TextStyle(fontWeight: FontWeight.w900)),
             const SizedBox(height: 10),
-            QrImageView(data: code, size: 150, version: QrVersions.auto),
-            const SizedBox(height: 10),
-            Text(code, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+            Text(code, style: const TextStyle(fontSize: 44, fontWeight: FontWeight.w900, letterSpacing: 2)),
           ],
         ),
       ),
@@ -231,7 +213,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('Players', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+              const Text('Žaidėjai', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
               const SizedBox(height: 10),
               Expanded(
                 child: ListView.separated(
@@ -239,17 +221,22 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                   separatorBuilder: (_, __) => const Divider(height: 1),
                   itemBuilder: (context, i) {
                     final p = players[i];
+                    final titleStyle = Theme.of(context).textTheme.titleMedium;
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
                       title: Text(
                         p.playerName,
-                        style: TextStyle(
+                        style: titleStyle?.copyWith(
                           fontWeight: FontWeight.w900,
                           color: p.userId == widget.userId ? Theme.of(context).colorScheme.secondary : null,
                         ),
                       ),
-                      subtitle: Text(
-                        'Ready: ${p.ready ? "Yes" : "No"} | Started: ${p.started ? "Yes" : "No"} | Finished: ${p.finished ? "Yes" : "No"}',
+                      trailing: Text(
+                        p.ready ? 'Pasiruošęs' : 'Nepasiruošęs',
+                        style: titleStyle?.copyWith(
+                          color: p.ready ? Colors.green : Colors.red,
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
                     );
                   },
@@ -282,7 +269,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
               await supabase.hostStartGame(roomId: widget.roomId, gameSeed: seed);
             }
           : null,
-      child: const Text('Start'),
+      child: const Text('Startuoti sesiją'),
     );
   }
 
@@ -294,7 +281,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
           final supabase = ref.read(supabaseServiceProvider);
           await supabase.setReady(roomId: widget.roomId, userId: widget.userId, ready: !myReady);
         },
-        child: Text(myReady ? 'Unready' : 'Ready'),
+        child: Text(myReady ? 'Nepasiruošęs' : 'Pasiruošęs'),
       ),
     );
   }
@@ -314,6 +301,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                 roomId: widget.roomId,
                 userId: widget.userId,
                 playerName: widget.playerName,
+                roomCode: widget.roomCode,
               ),
             ),
           );
@@ -323,7 +311,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
             supabase.markStarted(roomId: widget.roomId, userId: widget.userId),
           );
         },
-        child: const Text('Start'),
+        child: const Text('Pradėti dabar'),
       ),
     );
   }
@@ -335,7 +323,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
         color: Colors.white10,
         child: Padding(
           padding: EdgeInsets.all(14),
-          child: Text('Starting...', style: TextStyle(fontWeight: FontWeight.w900)),
+          child: Text('Pradedama...', style: TextStyle(fontWeight: FontWeight.w900)),
         ),
       ),
     );
@@ -348,7 +336,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
         color: Colors.white10,
         child: Padding(
           padding: EdgeInsets.all(14),
-          child: Text('Showing leaderboard...', style: TextStyle(fontWeight: FontWeight.w900)),
+          child: Text('Rodoma rezultatų lentelė...', style: TextStyle(fontWeight: FontWeight.w900)),
         ),
       ),
     );
@@ -363,4 +351,3 @@ extension _FirstOrNull<T> on Iterable<T> {
     return null;
   }
 }
-

@@ -1,10 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../state/app_providers.dart';
-import '../services/supabase_service.dart';
 import 'lobby_screen.dart';
 
 class JoinRoomScreen extends ConsumerStatefulWidget {
@@ -26,40 +24,11 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
     super.dispose();
   }
 
-  String? extractCode(String raw) {
-    final match = RegExp(r'(\d{4})').firstMatch(raw);
-    return match?.group(1);
-  }
-
-  Future<void> scanAndSetCode() async {
-    final code = await showDialog<String>(
-      context: context,
-      builder: (ctx) {
-        final scanner = MobileScanner(
-          onDetect: (capture) {
-            final raw = capture.barcodes.first.rawValue ?? '';
-            final extracted = extractCode(raw);
-            if (extracted != null) {
-              Navigator.of(ctx).pop(extracted);
-            }
-          },
-        );
-        return AlertDialog(
-          title: const Text('Scan Room QR'),
-          content: SizedBox(height: 320, width: 320, child: scanner),
-        );
-      },
-    );
-
-    if (code == null) return;
-    codeController.text = code;
-  }
-
   Future<void> join() async {
     final code = codeController.text.trim();
     if (!RegExp(r'^\d{4}$').hasMatch(code)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a valid 4-digit room code.')),
+        const SnackBar(content: Text('Įveskite galiojantį 4 skaitmenų kambario kodą.')),
       );
       return;
     }
@@ -70,9 +39,11 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
       final uid = await supabase.signInAnonymously();
       final room = await supabase.getRoomByCode(code);
       if (room == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Room not found.')),
-        );
+        if(mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Kambarys nerastas.')),
+          );
+        }
         return;
       }
 
@@ -93,13 +64,16 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
             userId: uid,
             playerName: widget.playerName,
             isHost: uid == hostUserId,
+            roomCode: code,
           ),
         ),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Join failed: $e')),
-      );
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Prisijungti nepavyko: $e')),
+        );
+      }
     } finally {
       if (mounted) setState(() => isJoining = false);
     }
@@ -109,7 +83,7 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Join Room'),
+        title: const Text('Prisijungti prie kambario'),
       ),
       body: SafeArea(
         child: Center(
@@ -121,7 +95,7 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Text(
-                    'Enter the 4-digit code or scan the QR.',
+                    'Įveskite 4 skaitmenų kodą, kad prisijungtumėte prie kambario.',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                   ),
@@ -131,16 +105,8 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
                     maxLength: 4,
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
-                      labelText: 'Room code',
+                      labelText: 'Kambario kodas',
                       border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: scanAndSetCode,
-                      child: const Text('Scan QR'),
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -154,7 +120,7 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
                               width: 18,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Text('Join'),
+                          : const Text('Prisijungti'),
                     ),
                   ),
                 ],
@@ -166,4 +132,3 @@ class _JoinRoomScreenState extends ConsumerState<JoinRoomScreen> {
     );
   }
 }
-

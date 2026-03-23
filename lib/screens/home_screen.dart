@@ -14,7 +14,7 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Brain Storm'),
+        title: const Text('Proto Mūšis'),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16),
@@ -45,7 +45,7 @@ class HomeScreen extends StatelessWidget {
                         ),
                       );
                     },
-                    child: const Text('Play Solo'),
+                    child: const Text('Žaisti vienam'),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -59,7 +59,7 @@ class HomeScreen extends StatelessWidget {
                         ),
                       );
                     },
-                    child: const Text('Create Room'),
+                    child: const Text('Sukurti kambarį'),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -73,7 +73,7 @@ class HomeScreen extends StatelessWidget {
                         ),
                       );
                     },
-                    child: const Text('Join Room'),
+                    child: const Text('Prisijungti prie kambario'),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -85,7 +85,7 @@ class HomeScreen extends StatelessWidget {
                     },
                     child: const Padding(
                       padding: EdgeInsets.symmetric(vertical: 14),
-                      child: Text('Exit App'),
+                      child: Text('Išeiti'),
                     ),
                   ),
                 ),

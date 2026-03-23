@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/quiz_question.dart';
-import '../services/supabase_service.dart';
 import '../state/app_providers.dart';
 import 'home_screen.dart';
 
@@ -35,9 +34,7 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
   bool finished = false;
   bool started = false;
 
-  int soloSeed = 0;
-
-  Future<void> _loadQuestions({required int seed}) async {
+  Future<void> _loadQuestions() async {
     final supabase = ref.read(supabaseServiceProvider);
     setState(() {
       questionsLoading = true;
@@ -45,12 +42,12 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
       roundQuestions = const [];
     });
     try {
-      final fetched = await supabase.fetchQuestions(seed: seed, limit: 10);
+      final fetched = await supabase.fetchQuestions(limit: 10);
       if (!mounted) return;
       setState(() {
         roundQuestions = fetched;
         questionsLoading = false;
-        questionsError = fetched.isEmpty ? 'No questions found in Supabase.' : null;
+        questionsError = fetched.isEmpty ? 'Klausimų nerasta.' : null;
       });
     } catch (e) {
       if (!mounted) return;
@@ -75,15 +72,13 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
     finished = false;
     started = false;
 
-    soloSeed = DateTime.now().millisecondsSinceEpoch;
-    await _loadQuestions(seed: soloSeed);
+    await _loadQuestions();
   }
 
   @override
   void initState() {
     super.initState();
-    soloSeed = DateTime.now().millisecondsSinceEpoch;
-    _loadQuestions(seed: soloSeed);
+    _loadQuestions();
   }
 
   @override
@@ -127,8 +122,6 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
 
     final isLast = questionIndex == roundQuestions.length - 1;
     if (isLast) {
-      // Capture the timer at the moment the last answer is chosen.
-      // Feedback still shows for 2 seconds, and the UI timer keeps running.
       final ms = stopwatch.elapsedMilliseconds;
       totalTimeMsAtLastAnswer = ((ms / 100).round() * 100).toInt();
     }
@@ -161,13 +154,13 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Play Solo'),
+        title: const Text('Žaisti vienam'),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: Center(
               child: Text(
-                started ? 'Time: ${formatTenths()}s' : 'Time: 0.0s',
+                started ? 'Laikas: ${formatTenths()}s' : 'Laikas: 0.0s',
                 style: const TextStyle(fontWeight: FontWeight.w700),
               ),
             ),
@@ -184,7 +177,7 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
                         child: questionsLoading
                             ? const CircularProgressIndicator()
                             : Text(
-                                questionsError ?? 'No questions loaded.',
+                                questionsError ?? 'Klausimai neužkrauti.',
                                 textAlign: TextAlign.center,
                                 style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w800),
                               ),
@@ -204,17 +197,17 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Text(
-                'Solo Lobby',
+                'Vieno žaidėjo laukiamasis',
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 10),
-              Text('You will answer 10 questions. Same rules, solo ranking.'),
+              const Text('Atsakysite į 10 klausimų. Taisyklės tos pačios, reitingas individualus.'),
               const SizedBox(height: 28),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: (questionsLoading || roundQuestions.isEmpty) ? null : start,
-                  child: const Text('Start'),
+                  child: const Text('Pradėti'),
                 ),
               ),
               if (questionsLoading) ...[
@@ -244,7 +237,7 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Question $idx / ${roundQuestions.length}',
+            'Klausimas $idx / ${roundQuestions.length}',
             style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
           ),
           const SizedBox(height: 14),
@@ -266,35 +259,46 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
               itemCount: 4,
               separatorBuilder: (_, __) => const SizedBox(height: 10),
               itemBuilder: (context, i) {
-                final disabled = hasAnswered;
                 final isCorrectOption = i == q.correctIndex;
                 final isSelectedOption = selectedOptionIndex == i;
 
-                final background = () {
-                  if (!hasAnswered) return const Color(0xFFFFD54F); // yellow
-                  if (isCorrectOption) return Colors.greenAccent;
-                  if (isSelectedOption && !lastAnswerCorrect) return Colors.redAccent;
-                  return const Color(0xFFFFD54F).withOpacity(0.25);
-                }();
-                final foreground = hasAnswered ? Colors.white : Colors.black.withOpacity(0.88);
-
                 final label = () {
                   if (!hasAnswered) return q.options[i];
-                  if (isCorrectOption && lastAnswerCorrect) return 'Correct!';
-                  if (isSelectedOption && !lastAnswerCorrect) return 'Incorrect!';
+                  if (isCorrectOption) return 'Teisingai!';
+                  if (isSelectedOption && !lastAnswerCorrect) return 'Neteisingai!';
                   return q.options[i];
                 }();
 
                 return SizedBox(
                   height: 58,
                   child: ElevatedButton(
-                    onPressed: disabled ? null : () => selectAnswer(i),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: background,
-                      foregroundColor: foreground,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                    onPressed: hasAnswered ? null : () => selectAnswer(i),
+                    style: ButtonStyle(
+                      backgroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
+                        if (states.contains(WidgetState.disabled)) {
+                          if (hasAnswered) {
+                            if (isCorrectOption) return Colors.green;
+                            if (isSelectedOption) return Colors.red;
+                          }
+                          return const Color(0xFFFFD54F).withOpacity(0.25);
+                        }
+                        return const Color(0xFFFFD54F); // yellow
+                      }),
+                      foregroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
+                        if (states.contains(WidgetState.disabled)) {
+                          return Colors.white;
+                        }
+                        return Colors.black.withOpacity(0.88);
+                      }),
+                      shape: WidgetStateProperty.all(
+                        RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      padding: WidgetStateProperty.all(
+                        const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                      ),
+                      textStyle: WidgetStateProperty.all(
+                        const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                      ),
                     ),
                     child: Text(label),
                   ),
@@ -313,7 +317,7 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
       child: Column(
         children: [
           const Text(
-            'Leaderboard',
+            'Rezultatai',
             style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 12),
@@ -384,7 +388,7 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
                 onPressed: () async {
                   await resetRound();
                 },
-                child: const Text('Next Game'),
+                child: const Text('Žaisti dar kartą'),
               ),
             ),
             const SizedBox(width: 12),
@@ -395,7 +399,7 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
                     builder: (_) => HomeScreen(playerName: widget.playerName),
                   ),
                 ),
-                child: const Text('Finish'),
+                child: const Text('Baigti'),
               ),
             ),
           ],
@@ -404,4 +408,3 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
     );
   }
 }
-

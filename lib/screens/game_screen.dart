@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/quiz_question.dart';
-import '../services/supabase_service.dart';
 import '../state/app_providers.dart';
 import 'leaderboard_screen.dart';
 
@@ -12,12 +11,14 @@ class GameScreen extends ConsumerStatefulWidget {
   final String roomId;
   final String userId;
   final String playerName;
+  final String roomCode;
 
   const GameScreen({
     super.key,
     required this.roomId,
     required this.userId,
     required this.playerName,
+    required this.roomCode,
   });
 
   @override
@@ -67,20 +68,19 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     });
     setState(() {});
   }
-  
+
   Future<void> _loadQuestions() async {
     final supabase = ref.read(supabaseServiceProvider);
     final room = await supabase.fetchRoom(roomId: widget.roomId);
-    final seed = room['game_seed'] as int? ?? 0;
     final hostUserId = room['host_user_id']?.toString() ?? '';
     isHost = hostUserId.isNotEmpty && hostUserId == widget.userId;
     try {
-      final fetched = await supabase.fetchQuestions(seed: seed, limit: 10);
+      final fetched = await supabase.fetchQuestions(limit: 10);
       if (!mounted) return;
       setState(() {
         roundQuestions = fetched;
         questionsLoading = false;
-        questionsError = fetched.isEmpty ? 'No questions found in Supabase.' : null;
+        questionsError = fetched.isEmpty ? 'Klausimų nerasta.' : null;
       });
     } catch (e) {
       if (!mounted) return;
@@ -104,11 +104,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     final correct = selectedIndex == q.correctIndex;
     final isLast = questionIndex == roundQuestions.length - 1;
 
-    // Capture the timer at the moment the last answer is chosen.
-    // Feedback still shows for 2 seconds, and the UI timer keeps running.
-    final totalTimeMsAtLastAnswer = isLast
-        ? ((stopwatch.elapsedMilliseconds / 100).round() * 100).toInt()
-        : null;
+    final totalTimeMsAtLastAnswer = isLast ? ((stopwatch.elapsedMilliseconds / 100).round() * 100).toInt() : null;
 
     setState(() {
       hasAnswered = true;
@@ -127,12 +123,9 @@ class _GameScreenState extends ConsumerState<GameScreen> {
       final totalTimeMs = totalTimeMsAtLastAnswer ?? elapsedRoundedMs;
       finished = true;
 
-      await ref.read(supabaseServiceProvider).submitResult(
-            roomId: widget.roomId,
-            userId: widget.userId,
-            correctCount: correctCount,
-            totalTimeMs: totalTimeMs,
-          );
+      await ref
+          .read(supabaseServiceProvider)
+          .submitResult(roomId: widget.roomId, userId: widget.userId, correctCount: correctCount, totalTimeMs: totalTimeMs);
 
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
@@ -142,6 +135,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
             userId: widget.userId,
             playerName: widget.playerName,
             isHost: isHost,
+            roomCode: widget.roomCode,
           ),
         ),
       );
@@ -162,13 +156,13 @@ class _GameScreenState extends ConsumerState<GameScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Game'),
+        title: const Text('Žaidimas'),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: Center(
               child: Text(
-                'Time: ${formatTenths()}s',
+                'Laikas: ${formatTenths()}s',
                 style: const TextStyle(fontWeight: FontWeight.w900),
               ),
             ),
@@ -180,7 +174,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
               child: questionsLoading
                   ? const CircularProgressIndicator()
                   : Text(
-                      questionsError ?? 'No questions loaded.',
+                      questionsError ?? 'Klausimai neužkrauti.',
                       textAlign: TextAlign.center,
                     ),
             )
@@ -191,7 +185,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      'Question ${questionIndex + 1} / 10',
+                      'Klausimas ${questionIndex + 1} / 10',
                       style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
                     ),
                     const SizedBox(height: 14),
@@ -213,41 +207,45 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                         itemCount: 4,
                         separatorBuilder: (_, __) => const SizedBox(height: 10),
                         itemBuilder: (context, i) {
-                          final disabled = hasAnswered || finished;
                           final isCorrectOption = i == q.correctIndex;
                           final isSelectedOption = selectedOptionIndex == i;
 
-                          final background = () {
-                            if (!hasAnswered) return const Color(0xFFFFD54F); // yellow
-                            if (isCorrectOption) return Colors.greenAccent;
-                            if (isSelectedOption && !lastAnswerCorrect) return Colors.redAccent;
-                            return const Color(0xFFFFD54F).withOpacity(0.25);
-                          }();
-                          final foreground = hasAnswered
-                              ? Colors.white
-                              : Colors.black.withOpacity(0.88);
-
                           final label = () {
                             if (!hasAnswered) return q.options[i];
-                            if (isCorrectOption && lastAnswerCorrect) return 'Correct!';
-                            if (isSelectedOption && !lastAnswerCorrect) return 'Incorrect!';
+                            if (isCorrectOption) return 'Teisingai!';
+                            if (isSelectedOption && !lastAnswerCorrect) return 'Neteisingai!';
                             return q.options[i];
                           }();
 
                           return SizedBox(
                             height: 58,
                             child: ElevatedButton(
-                              onPressed: disabled ? null : () => selectAnswer(i),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: background,
-                                foregroundColor: foreground,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
+                              onPressed: hasAnswered || finished ? null : () => selectAnswer(i),
+                              style: ButtonStyle(
+                                backgroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
+                                  if (states.contains(WidgetState.disabled)) {
+                                    if (hasAnswered) {
+                                      if (isCorrectOption) return Colors.green;
+                                      if (isSelectedOption && !lastAnswerCorrect) return Colors.red;
+                                    }
+                                    return const Color(0xFFFFD54F).withOpacity(0.25);
+                                  }
+                                  return const Color(0xFFFFD54F); // yellow
+                                }),
+                                foregroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
+                                  if (states.contains(WidgetState.disabled)) {
+                                    return Colors.white;
+                                  }
+                                  return Colors.black.withOpacity(0.88);
+                                }),
+                                shape: WidgetStateProperty.all(
+                                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                                 ),
-                                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                                textStyle: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w900,
+                                padding: WidgetStateProperty.all(
+                                  const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                                ),
+                                textStyle: WidgetStateProperty.all(
+                                  const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
                                 ),
                               ),
                               child: Text(label),
@@ -263,4 +261,3 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     );
   }
 }
-

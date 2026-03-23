@@ -7,12 +7,10 @@ class AppTheme {
       primary: Color(0xFF7C4DFF),
       secondary: Color(0xFF00E5FF),
       surface: Color(0xFF121212),
-      background: Color(0xFF0B0B0F),
       error: Color(0xFFFF5252),
       onPrimary: Color(0xFFFFFFFF),
       onSecondary: Color(0xFF001014),
       onSurface: Color(0xFFEFEFEF),
-      onBackground: Color(0xFFEFEFEF),
       onError: Color(0xFFFFFFFF),
       primaryContainer: Color(0xFF311B92),
       secondaryContainer: Color(0xFF00B8D4),
@@ -21,11 +19,11 @@ class AppTheme {
 
     return ThemeData(
       colorScheme: colorScheme,
-      scaffoldBackgroundColor: colorScheme.background,
+      scaffoldBackgroundColor: colorScheme.surface,
       useMaterial3: true,
       appBarTheme: AppBarTheme(
-        backgroundColor: colorScheme.background,
-        foregroundColor: colorScheme.onBackground,
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(

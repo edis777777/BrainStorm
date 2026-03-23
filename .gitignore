@@ -1,0 +1,11 @@
+/build/
+/.dart_tool/
+/.idx/
+/android/
+/ios/
+/linux/
+/windows/
+/macos/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.lock

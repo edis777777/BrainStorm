@@ -1,7 +1,7 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:realtime_client/realtime_client.dart' show PostgresChangeFilter, PostgresChangeFilterType;
 
 import '../config.dart';
 import '../models/quiz_question.dart';
@@ -23,35 +23,47 @@ class SupabaseService {
     final auth = client.auth;
     final currentSession = auth.currentSession;
     if (currentSession?.user != null) {
-      return currentSession!.user!.id;
+      return currentSession!.user.id;
     }
 
     final res = await auth.signInAnonymously();
     return res.user!.id;
   }
 
-  Future<String> createRoom({
+  Future<Map<String, dynamic>> createRoom({
     required String hostUserId,
-    required String code,
     required int gameSeed,
   }) async {
-    final inserted = await client
-        .from('rooms')
-        .insert({
-          'code': code,
-          'host_user_id': hostUserId,
-          'game_started': false,
-          'game_seed': gameSeed,
-        })
-        .select()
-        .single();
-    return inserted['id'].toString();
+    final r = Random();
+    const maxAttempts = 10;
+    for (var i = 0; i < maxAttempts; i++) {
+      final code = (1000 + r.nextInt(9000)).toString();
+      try {
+        final inserted = await client
+            .from('rooms')
+            .insert({
+              'code': code,
+              'host_user_id': hostUserId,
+              'game_started': false,
+              'game_seed': gameSeed,
+            })
+            .select()
+            .single();
+        return inserted;
+      } on PostgrestException catch (e) {
+        if (e.code == '23505') { // unique_violation for PostgreSQL
+          continue;
+        }
+        rethrow;
+      }
+    }
+    throw Exception('Failed to generate a unique room code.');
   }
 
   Future<Map<String, dynamic>?> getRoomByCode(String code) async {
     final rows = await client.from('rooms').select().eq('code', code).limit(1);
     if (rows.isEmpty) return null;
-    return rows.first as Map<String, dynamic>;
+    return rows.first;
   }
 
   Future<String> addPlayerToRoom({
@@ -83,99 +95,16 @@ class SupabaseService {
         .eq('user_id', userId)
         .limit(1);
     if (rows.isEmpty) return null;
-    return rows.first as Map<String, dynamic>;
+    return rows.first;
   }
 
-  Stream<List<Map<String, dynamic>>> playerRowsStream({
-    required String roomId,
-    List<Map<String, dynamic>> initialPlayers = const [],
-  }) {
-    // Consumers should call initial fetch separately; this stream just pushes updates.
-    final controller = StreamController<List<Map<String, dynamic>>>();
-    final players = List<Map<String, dynamic>>.from(initialPlayers);
-
-    void emit() {
-      controller.add(List<Map<String, dynamic>>.from(players));
-    }
-
-    final channel = client.channel('players_stream_$roomId');
-
-    // Helper for updating local cache
-    void upsertRow(Map<String, dynamic> row) {
-      final userId = row['user_id']?.toString();
-      final idx = players.indexWhere((e) => e['user_id']?.toString() == userId);
-      if (idx >= 0) {
-        players[idx] = row;
-      } else {
-        players.add(row);
-      }
-    }
-
-    void removeRow(Map<String, dynamic> row) {
-      final userId = row['user_id']?.toString();
-      players.removeWhere((e) => e['user_id']?.toString() == userId);
-    }
-
-    channel.onPostgresChanges(
-      event: PostgresChangeEvent.insert,
-      schema: 'public',
-      table: 'room_players',
-      filter: PostgresChangeFilter(
-        type: PostgresChangeFilterType.eq,
-        column: 'room_id',
-        value: roomId,
-      ),
-      callback: (payload) {
-        final newRow = payload.newRecord as Map<String, dynamic>;
-        upsertRow(newRow);
-        emit();
-      },
-    );
-
-    channel.onPostgresChanges(
-      event: PostgresChangeEvent.update,
-      schema: 'public',
-      table: 'room_players',
-      filter: PostgresChangeFilter(
-        type: PostgresChangeFilterType.eq,
-        column: 'room_id',
-        value: roomId,
-      ),
-      callback: (payload) {
-        final newRow = payload.newRecord as Map<String, dynamic>;
-        upsertRow(newRow);
-        emit();
-      },
-    );
-
-    channel.onPostgresChanges(
-      event: PostgresChangeEvent.delete,
-      schema: 'public',
-      table: 'room_players',
-      filter: PostgresChangeFilter(
-        type: PostgresChangeFilterType.eq,
-        column: 'room_id',
-        value: roomId,
-      ),
-      callback: (payload) {
-        final oldRow = payload.oldRecord as Map<String, dynamic>;
-        removeRow(oldRow);
-        emit();
-      },
-    );
-
-    channel.subscribe();
-    if (initialPlayers.isNotEmpty) {
-      // Emit immediately so the UI can render before the first realtime event.
-      emit();
-    }
-
-    controller.onCancel = () async {
-      await client.removeChannel(channel);
-      await controller.close();
-    };
-
-    return controller.stream;
+  Stream<List<Map<String, dynamic>>> playerRowsStream({required String roomId}) {
+    // The stream() method handles fetching the initial data and listening for changes.
+    return client
+        .from('room_players')
+        .stream(primaryKey: ['room_id', 'user_id'])
+        .eq('room_id', roomId)
+        .order('player_name', ascending: true);
   }
 
   Stream<Map<String, dynamic>> roomRowStream({
@@ -195,7 +124,7 @@ class SupabaseService {
         value: roomId,
       ),
       callback: (payload) {
-        controller.add(payload.newRecord as Map<String, dynamic>);
+        controller.add(payload.newRecord);
       },
     );
 
@@ -218,7 +147,7 @@ class SupabaseService {
     if (rows.isEmpty) {
       throw StateError('Room not found: $roomId');
     }
-    return rows.first as Map<String, dynamic>;
+    return rows.first;
   }
 
   Future<List<Map<String, dynamic>>> fetchPlayers({required String roomId}) async {
@@ -226,7 +155,7 @@ class SupabaseService {
         .from('room_players')
         .select()
         .eq('room_id', roomId);
-    return rows.map((e) => e as Map<String, dynamic>).toList();
+    return rows.map((e) => e).toList();
   }
 
   Future<void> setReady({required String roomId, required String userId, required bool ready}) async {
@@ -284,14 +213,13 @@ class SupabaseService {
   }
 
   Future<List<QuizQuestion>> fetchQuestions({
-    required int seed,
+    required String userId,
     int limit = 10,
   }) async {
-    // Expects public.get_questions(p_seed bigint, p_limit int) returning setof questions.
     final result = await client.rpc(
-      'get_questions',
+      'get_unplayed_questions',
       params: <String, dynamic>{
-        'p_seed': seed,
+        'p_user_id': userId,
         'p_limit': limit,
       },
     );
@@ -309,5 +237,21 @@ class SupabaseService {
     final mapped = rows.cast<Map<String, dynamic>>().map((row) => QuizQuestion.fromSupabaseRow(row)).toList();
     return mapped;
   }
-}
 
+  Future<void> recordPlayedQuestions({
+    required String userId,
+    required List<int> questionIds,
+  }) async {
+    if (questionIds.isEmpty) {
+      return;
+    }
+    final records = questionIds
+        .map((qid) => {
+              'user_id': userId,
+              'question_id': qid,
+            })
+        .toList();
+
+    await client.from('played_questions').insert(records);
+  }
+}
