@@ -8,9 +8,18 @@ class AudioService {
     _bgmPlayer.onPlayerStateChanged.listen((state) {
       isPlayingNotifier.value = (state == PlayerState.playing);
     });
+    // Pre-load SFX for Web so we don't have to load them on every click
+    _sfxCorrect.setSource(AssetSource('taip.mp3'));
+    _sfxIncorrect.setSource(AssetSource('ne.mp3'));
+    _sfxChampion.setSource(AssetSource('cemp.mp3'));
   }
 
   final AudioPlayer _bgmPlayer = AudioPlayer();
+  
+  final AudioPlayer _sfxCorrect = AudioPlayer()..setReleaseMode(ReleaseMode.stop)..setVolume(1.0);
+  final AudioPlayer _sfxIncorrect = AudioPlayer()..setReleaseMode(ReleaseMode.stop)..setVolume(1.0);
+  final AudioPlayer _sfxChampion = AudioPlayer()..setReleaseMode(ReleaseMode.stop)..setVolume(1.0);
+
   final ValueNotifier<bool> isPlayingNotifier = ValueNotifier(false);
   bool _hasAttemptedAutoPlay = false;
 
@@ -69,9 +78,8 @@ class AudioService {
 
   Future<void> playCorrectSound() async {
     try {
-      final player = AudioPlayer();
-      player.onPlayerComplete.listen((event) => player.dispose());
-      await player.play(AssetSource('taip.mp3'), volume: 1.0);
+      await _sfxCorrect.stop();
+      await _sfxCorrect.resume();
     } catch (e) {
       print('Error playing correct sound: $e');
     }
@@ -79,9 +87,8 @@ class AudioService {
 
   Future<void> playIncorrectSound() async {
     try {
-      final player = AudioPlayer();
-      player.onPlayerComplete.listen((event) => player.dispose());
-      await player.play(AssetSource('ne.mp3'), volume: 1.0);
+      await _sfxIncorrect.stop();
+      await _sfxIncorrect.resume();
     } catch (e) {
       print('Error playing incorrect sound: $e');
     }
@@ -89,9 +96,8 @@ class AudioService {
 
   Future<void> playChampionSound() async {
     try {
-      final player = AudioPlayer();
-      player.onPlayerComplete.listen((event) => player.dispose());
-      await player.play(AssetSource('cemp.mp3'), volume: 1.0);
+      await _sfxChampion.stop();
+      await _sfxChampion.resume();
     } catch (e) {
       print('Error playing champion sound: $e');
     }
