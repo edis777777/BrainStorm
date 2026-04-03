@@ -223,7 +223,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Text(
-            'KUO GREIČIAU ATSAKYK Į 10 KLAUSIMŲ',
+            'ATSAKYK Į 10 KLAUSIMŲ',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Colors.cyanAccent,

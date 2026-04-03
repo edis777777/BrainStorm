@@ -388,7 +388,7 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Text(
-            'KUO GREIČIAU ATSAKYK Į 10 KLAUSIMŲ',
+            'ATSAKYK Į 10 KLAUSIMŲ',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Colors.cyanAccent,
