@@ -197,20 +197,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Text(
-                              appTitle,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 48,
-                                fontWeight: FontWeight.w900,
-                                color: colorScheme.secondary,
-                                letterSpacing: 2,
-                                shadows: [
-                                  Shadow(color: colorScheme.secondary.withOpacity(0.5), blurRadius: 20),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 16),
+// Removed GUDRUTIS to save space
                             _displayRoomCode(r.code),
                             const SizedBox(height: 16),
                             _instructionBlock(),
@@ -233,7 +220,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
   Widget _displayRoomCode(String code) {
     final colorScheme = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       decoration: BoxDecoration(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(16),
@@ -250,7 +237,7 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
               letterSpacing: 2,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 2),
           Text(
             code, 
             style: TextStyle(
@@ -466,43 +453,41 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
 
     return Center(
       child: FractionallySizedBox(
-        widthFactor: 0.5,
-        child: AspectRatio(
-          aspectRatio: 1.0,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.transparent,
-              border: Border.all(color: bgColor == Colors.grey.shade800 ? Colors.white38 : bgColor, width: 2.0),
-              boxShadow: bgColor == Colors.grey.shade800 ? [] : [
-                BoxShadow(
-                  color: bgColor.withOpacity(0.15),
-                  blurRadius: 25,
-                  spreadRadius: 5,
-                )
-              ],
-            ),
-            child: Material(
-              color: Colors.transparent,
-              shape: const CircleBorder(),
-              child: InkWell(
-                onTap: onPressed,
-                customBorder: const CircleBorder(),
-                child: Center(
-                  child: _BlinkingText(
-                    text.toUpperCase(),
-                    shouldBlink: bgColor != Colors.grey.shade800,
-                    key: ValueKey(text),
-                    style: TextStyle(
-                      fontSize: 24, 
-                      fontWeight: FontWeight.w900,
-                      height: 1.3,
-                      color: bgColor == Colors.grey.shade800 ? Colors.white54 : bgColor,
-                      shadows: bgColor == Colors.grey.shade800 ? [] : [
-                        Shadow(color: bgColor.withOpacity(0.8), blurRadius: 10),
-                      ],
-                    ),
+        widthFactor: 0.8,
+        child: AnimatedContainer(
+          height: 80,
+          duration: const Duration(milliseconds: 300),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(40),
+            color: Colors.transparent,
+            border: Border.all(color: bgColor == Colors.grey.shade800 ? Colors.white38 : bgColor, width: 2.0),
+            boxShadow: bgColor == Colors.grey.shade800 ? [] : [
+              BoxShadow(
+                color: bgColor.withOpacity(0.15),
+                blurRadius: 25,
+                spreadRadius: 5,
+              )
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)),
+            child: InkWell(
+              onTap: onPressed,
+              customBorder: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)),
+              child: Center(
+                child: _BlinkingText(
+                  text.toUpperCase(),
+                  shouldBlink: bgColor != Colors.grey.shade800,
+                  key: ValueKey(text),
+                  style: TextStyle(
+                    fontSize: 22, 
+                    fontWeight: FontWeight.w900,
+                    height: 1.3,
+                    color: bgColor == Colors.grey.shade800 ? Colors.white54 : bgColor,
+                    shadows: bgColor == Colors.grey.shade800 ? [] : [
+                      Shadow(color: bgColor.withOpacity(0.8), blurRadius: 10),
+                    ],
                   ),
                 ),
               ),
@@ -607,43 +592,41 @@ class _LobbyScreenState extends ConsumerState<LobbyScreen> {
 
     return Center(
       child: FractionallySizedBox(
-        widthFactor: 0.5,
-        child: AspectRatio(
-          aspectRatio: 1.0,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.transparent,
-              border: Border.all(color: bgColor == Colors.grey.shade800 ? Colors.white38 : bgColor, width: 2.0),
-              boxShadow: bgColor == Colors.grey.shade800 ? [] : [
-                BoxShadow(
-                  color: bgColor.withOpacity(0.15),
-                  blurRadius: 25,
-                  spreadRadius: 5,
-                )
-              ],
-            ),
-            child: Material(
-              color: Colors.transparent,
-              shape: const CircleBorder(),
-              child: InkWell(
-                onTap: onPressed,
-                customBorder: const CircleBorder(),
-                child: Center(
-                  child: _BlinkingText(
-                    text.toUpperCase(),
-                    shouldBlink: bgColor != Colors.grey.shade800,
-                    key: ValueKey(text),
-                    style: TextStyle(
-                      fontSize: 24, 
-                      fontWeight: FontWeight.w900,
-                      height: 1.3,
-                      color: bgColor == Colors.grey.shade800 ? Colors.white54 : bgColor,
-                      shadows: bgColor == Colors.grey.shade800 ? [] : [
-                        Shadow(color: bgColor.withOpacity(0.8), blurRadius: 10),
-                      ],
-                    ),
+        widthFactor: 0.8,
+        child: AnimatedContainer(
+          height: 80,
+          duration: const Duration(milliseconds: 300),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(40),
+            color: Colors.transparent,
+            border: Border.all(color: bgColor == Colors.grey.shade800 ? Colors.white38 : bgColor, width: 2.0),
+            boxShadow: bgColor == Colors.grey.shade800 ? [] : [
+              BoxShadow(
+                color: bgColor.withOpacity(0.15),
+                blurRadius: 25,
+                spreadRadius: 5,
+              )
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)),
+            child: InkWell(
+              onTap: onPressed,
+              customBorder: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)),
+              child: Center(
+                child: _BlinkingText(
+                  text.toUpperCase(),
+                  shouldBlink: bgColor != Colors.grey.shade800,
+                  key: ValueKey(text),
+                  style: TextStyle(
+                    fontSize: 22, 
+                    fontWeight: FontWeight.w900,
+                    height: 1.3,
+                    color: bgColor == Colors.grey.shade800 ? Colors.white54 : bgColor,
+                    shadows: bgColor == Colors.grey.shade800 ? [] : [
+                      Shadow(color: bgColor.withOpacity(0.8), blurRadius: 10),
+                    ],
                   ),
                 ),
               ),
