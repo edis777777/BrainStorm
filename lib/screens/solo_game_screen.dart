@@ -4,8 +4,45 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/quiz_question.dart';
+import '../services/audio_service.dart';
 import '../state/app_providers.dart';
+import '../theme/app_theme.dart';
 import 'home_screen.dart';
+
+class _SpeechBubblePainter extends CustomPainter {
+  final Color color;
+  final double cutSize;
+
+  _SpeechBubblePainter({required this.color, this.cutSize = 25.0});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5;
+
+    final path = Path();
+    path.moveTo(0, 0); 
+    path.lineTo(size.width - cutSize, 0); 
+    path.lineTo(size.width, cutSize); 
+    path.lineTo(size.width, size.height); 
+    
+    // Tail
+    path.lineTo(size.width - 30, size.height + 18); 
+    path.lineTo(size.width - 50, size.height); 
+    
+    path.lineTo(cutSize, size.height); 
+    path.lineTo(0, size.height - cutSize); 
+    path.close(); 
+
+    canvas.drawShadow(path, color, 8.0, true);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
 
 class SoloGameScreen extends ConsumerStatefulWidget {
   final String playerName;
@@ -42,10 +79,11 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
       roundQuestions = const [];
     });
     try {
+      final userId = await supabase.signInAnonymously();
       final fetched = await supabase.fetchQuestions(
-  limit: 10, 
-  userId: Supabase.instance.client.auth.currentUser?.id ?? 'guest_user',
-);
+        limit: 10, 
+        userId: userId,
+      );
       if (!mounted) return;
       setState(() {
         roundQuestions = fetched;
@@ -81,6 +119,7 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
   @override
   void initState() {
     super.initState();
+    audioService.stopBackgroundMusic();
     _loadQuestions();
   }
 
@@ -120,7 +159,12 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
       hasAnswered = true;
       lastAnswerCorrect = correct;
       selectedOptionIndex = selectedIndex;
-      if (correct) correctCount++;
+      if (correct) {
+        correctCount++;
+        audioService.playCorrectSound();
+      } else {
+        audioService.playIncorrectSound();
+      }
     });
 
     final isLast = questionIndex == roundQuestions.length - 1;
@@ -139,6 +183,16 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
         elapsedRoundedMs = totalTimeMsAtLastAnswer;
       });
       uiTimer?.cancel();
+      
+      // Vieno žaidėjo režime žaidėjas visada finišuoja pirmas
+      audioService.playChampionSound();
+
+      final userId = await ref.read(supabaseServiceProvider).signInAnonymously();
+      final qIds = roundQuestions.map<int>((q) => q.id).toList();
+      await ref.read(supabaseServiceProvider).recordPlayedQuestions(
+        userId: userId,
+        questionIds: qIds,
+      );
       return;
     }
 
@@ -155,76 +209,166 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
     final canShowStart = !started && !finished;
     final q = questionIndex < roundQuestions.length ? roundQuestions[questionIndex] : null;
 
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('Žaisti vienam'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Center(
-              child: Text(
-                started ? 'Laikas: ${formatTenths()}s' : 'Laikas: 0.0s',
-                style: const TextStyle(fontWeight: FontWeight.w700),
+        title: (canShowStart || (!finished && q != null)) 
+            ? const SizedBox.shrink() 
+            : const Text('Žaisti vienam', style: TextStyle(color: Colors.white)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: Stack(
+        children: [
+          Container(
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/fonas.jpg'), 
+                fit: BoxFit.cover,
               ),
             ),
-          )
+          ),
+          Container(color: Colors.black.withOpacity(0.4)),
+          SafeArea(
+            child: finished
+                ? _buildLeaderboard()
+                : canShowStart
+                    ? _buildLobbySolo()
+                    : (q == null
+                        ? Center(
+                            child: questionsLoading
+                                ? const CircularProgressIndicator()
+                                : Text(
+                                    questionsError ?? 'Klausimai neužkrauti.',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w800),
+                                  ),
+                          )
+                        : _buildQuestion(q)),
+          ),
         ],
-      ),
-      body: SafeArea(
-        child: finished
-            ? _buildLeaderboard()
-            : canShowStart
-                ? _buildLobbySolo()
-                : (q == null
-                    ? Center(
-                        child: questionsLoading
-                            ? const CircularProgressIndicator()
-                            : Text(
-                                questionsError ?? 'Klausimai neužkrauti.',
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w800),
-                              ),
-                      )
-                    : _buildQuestion(q)),
       ),
     );
   }
 
   Widget _buildLobbySolo() {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 520),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'Vieno žaidėjo laukiamasis',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(height: 10),
-              const Text('Atsakysite į 10 klausimų. Taisyklės tos pačios, reitingas individualus.'),
-              const SizedBox(height: 28),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: (questionsLoading || roundQuestions.isEmpty) ? null : start,
-                  child: const Text('Pradėti'),
+              Text(
+                appTitle,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 48,
+                  fontWeight: FontWeight.w900,
+                  color: colorScheme.secondary,
+                  letterSpacing: 2,
+                  shadows: [
+                    Shadow(color: colorScheme.secondary.withOpacity(0.5), blurRadius: 20),
+                  ],
                 ),
               ),
-              if (questionsLoading) ...[
-                const SizedBox(height: 12),
-                const Center(child: CircularProgressIndicator()),
-              ],
-              if (!questionsLoading && questionsError != null) ...[
-                const SizedBox(height: 12),
+              const SizedBox(height: 12),
+              Text(
+                widget.playerName,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.secondary,
+                ),
+              ),
+              const SizedBox(height: 48),
+
+              CustomPaint(
+                painter: _SpeechBubblePainter(color: colorScheme.primary),
+                child: Container(
+                  height: 140, 
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Center(
+                    child: Text(
+                      "ATSAKYSITE Į 10 KLAUSIMŲ,\nSPAUSKITE PRADĖTI ŽAIDIMĄ",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: colorScheme.primary,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        height: 1.3,
+                        shadows: [
+                          Shadow(color: colorScheme.primary.withOpacity(0.6), blurRadius: 10),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 48),
+
+              if (questionsLoading || (roundQuestions.isEmpty && questionsError == null))
+                const Center(child: CircularProgressIndicator(color: Colors.pinkAccent))
+              else if (questionsError != null)
                 Text(
                   questionsError!,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w800),
+                  style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w800, fontSize: 18),
+                )
+              else
+                Center(
+                  child: FractionallySizedBox(
+                    widthFactor: 0.5,
+                    child: AspectRatio(
+                      aspectRatio: 1.0,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.transparent,
+                          border: Border.all(color: Colors.pinkAccent, width: 2.0),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.pinkAccent.withOpacity(0.15),
+                              blurRadius: 25,
+                              spreadRadius: 5,
+                            )
+                          ],
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          shape: const CircleBorder(),
+                          child: InkWell(
+                            onTap: start,
+                            customBorder: const CircleBorder(),
+                            child: Center(
+                              child: Text(
+                                "PRADĖTI ŽAIDIMĄ",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 20, 
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.pinkAccent,
+                                  height: 1.3,
+                                  shadows: [
+                                    Shadow(color: Colors.pinkAccent.withOpacity(0.8), blurRadius: 10),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-              ],
             ],
           ),
         ),
@@ -234,80 +378,130 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
 
   Widget _buildQuestion(QuizQuestion q) {
     final idx = questionIndex + 1;
+    final mascotImage = !hasAnswered 
+        ? 'assets/susikaupk.png' 
+        : (lastAnswerCorrect ? 'assets/yes.png' : 'assets/no.png');
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            'Klausimas $idx / ${roundQuestions.length}',
-            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-          ),
-          const SizedBox(height: 14),
-          Card(
-            elevation: 0,
-            color: Colors.white10,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                q.question,
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-              ),
+          const Text(
+            'KUO GREIČIAU ATSAKYK Į 10 KLAUSIMŲ',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.cyanAccent,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.2,
             ),
           ),
-          const SizedBox(height: 14),
-          Expanded(
-            child: ListView.separated(
-              itemCount: 4,
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.transparent,
+                    border: Border.all(color: Colors.purpleAccent, width: 2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      const Text('Klausimas', style: TextStyle(color: Colors.purpleAccent, fontSize: 12, fontWeight: FontWeight.bold)),
+                      Text('$idx', style: const TextStyle(color: Colors.purpleAccent, fontSize: 24, fontWeight: FontWeight.w900)),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.transparent,
+                    border: Border.all(color: Colors.purpleAccent, width: 2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      const Text('Laikas', style: TextStyle(color: Colors.purpleAccent, fontSize: 12, fontWeight: FontWeight.bold)),
+                      Text('${formatTenths()}s', style: const TextStyle(color: Colors.purpleAccent, fontSize: 24, fontWeight: FontWeight.w900)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(16),
+            constraints: const BoxConstraints(minHeight: 80),
+            decoration: BoxDecoration(
+              color: Colors.grey.withOpacity(0.35),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey.withOpacity(0.5), width: 1),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              q.question,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800, height: 1.3),
+            ),
+          ),
+          const SizedBox(height: 16),
+          ListView.separated(
+            shrinkWrap: true,
+            itemCount: 4,
+            physics: const NeverScrollableScrollPhysics(),
               separatorBuilder: (_, __) => const SizedBox(height: 10),
               itemBuilder: (context, i) {
                 final isCorrectOption = i == q.correctIndex;
                 final isSelectedOption = selectedOptionIndex == i;
 
-                final label = () {
-                  if (!hasAnswered) return q.options[i];
-                  if (isCorrectOption) return 'Teisingai!';
-                  if (isSelectedOption && !lastAnswerCorrect) return 'Neteisingai!';
-                  return q.options[i];
-                }();
+                Color bgColor = Colors.amber.shade700;
+                Color borderColor = Colors.amber.shade100;
+                Color textColor = Colors.black87;
+
+                if (hasAnswered) {
+                  if (isCorrectOption) {
+                    bgColor = Colors.green.shade800;
+                    borderColor = Colors.green.shade400;
+                    textColor = Colors.white;
+                  } else if (isSelectedOption) {
+                    bgColor = Colors.red.shade800;
+                    borderColor = Colors.red.shade400;
+                    textColor = Colors.white;
+                  } else {
+                    bgColor = Colors.amber.shade200.withOpacity(0.5);
+                    borderColor = Colors.amber.shade50.withOpacity(0.5);
+                    textColor = Colors.black38;
+                  }
+                }
 
                 return SizedBox(
-                  height: 58,
+                  height: 52,
                   child: ElevatedButton(
                     onPressed: hasAnswered ? null : () => selectAnswer(i),
                     style: ButtonStyle(
-                      backgroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
-                        if (states.contains(WidgetState.disabled)) {
-                          if (hasAnswered) {
-                            if (isCorrectOption) return Colors.green;
-                            if (isSelectedOption) return Colors.red;
-                          }
-                          return const Color(0xFFFFD54F).withOpacity(0.25);
-                        }
-                        return const Color(0xFFFFD54F); // yellow
-                      }),
-                      foregroundColor: WidgetStateProperty.resolveWith<Color?>((states) {
-                        if (states.contains(WidgetState.disabled)) {
-                          return Colors.white;
-                        }
-                        return Colors.black.withOpacity(0.88);
-                      }),
+                      backgroundColor: WidgetStateProperty.all(bgColor),
+                      foregroundColor: WidgetStateProperty.all(textColor),
+                      side: WidgetStateProperty.all(BorderSide(color: borderColor, width: 2)),
                       shape: WidgetStateProperty.all(
-                        RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        BeveledRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      padding: WidgetStateProperty.all(
-                        const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                      ),
-                      textStyle: WidgetStateProperty.all(
-                        const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
-                      ),
+                      elevation: WidgetStateProperty.all(0),
                     ),
-                    child: Text(label),
+                    child: Text(q.options[i], style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
                   ),
                 );
               },
             ),
+          const SizedBox(height: 26),
+          Expanded(
+            child: Image.asset(mascotImage, fit: BoxFit.contain),
           ),
         ],
       ),
@@ -315,25 +509,36 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
   }
 
   Widget _buildLeaderboard() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-      child: Column(
-        children: [
-          const Text(
-            'Rezultatai',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: ListView(
-              children: [
-                _leaderRow(rank: 1, name: widget.playerName, correct: correctCount, ms: totalTimeMsAtLastAnswer),
-              ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+          child: Text(
+            'SVEIKINAME ŠIO ŽAIDIMO NUGALĖTOJĄ, BANDYKITE DAR KARTĄ',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.cyanAccent,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.2,
             ),
           ),
-          _bottomActions(),
-        ],
-      ),
+        ),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            children: [
+              _leaderRow(rank: 1, name: widget.playerName, correct: correctCount, ms: totalTimeMsAtLastAnswer),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Expanded(
+          child: Image.asset('assets/saunuolis.png', fit: BoxFit.contain),
+        ),
+        _bottomActions(),
+      ],
     );
   }
 
@@ -344,34 +549,37 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
     required int ms,
   }) {
     final secs = ms / 1000.0;
+    final formattedSecs = secs.toStringAsFixed(1).replaceAll('.', ',');
+
     return Card(
-      color: Colors.white10,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: const Color(0xFFFFD700), // Gold
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
             SizedBox(
-              width: 44,
+              width: 32,
               child: Text(
-                '#$rank',
-                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                '$rank.',
+                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Colors.black),
               ),
             ),
             Expanded(
               child: Text(
                 name,
-                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Colors.black),
               ),
             ),
             Text(
-              '$correct / 10',
-              style: const TextStyle(fontWeight: FontWeight.w900),
+              '$correct/10',
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Colors.black),
             ),
             const SizedBox(width: 12),
             Text(
-              '${secs.toStringAsFixed(1)}s',
-              style: const TextStyle(fontWeight: FontWeight.w700),
+              formattedSecs,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: Colors.black),
             ),
           ],
         ),
@@ -383,7 +591,7 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
     return SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: const EdgeInsets.fromLTRB(18, 8, 18, 16),
         child: Row(
           children: [
             Expanded(

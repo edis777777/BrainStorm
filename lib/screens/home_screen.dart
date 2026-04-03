@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'create_room_screen.dart';
 import 'join_room_screen.dart';
 import 'solo_game_screen.dart';
+import '../theme/app_theme.dart';
+import '../services/audio_service.dart';
 
 class HomeScreen extends StatelessWidget {
   final String playerName;
@@ -12,87 +14,182 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Attempt to start music, it will fail silently if blocked by browser policy without user interaction.
+    audioService.autoPlayOnce();
+
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Proto Mūšis'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Center(
-              child: Text(
-                playerName,
-                style: const TextStyle(fontWeight: FontWeight.w700),
+      body: Stack(
+        children: [
+          // 1. FONAS
+          Container(
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/fonas.jpg'), 
+                fit: BoxFit.cover,
               ),
             ),
-          )
-        ],
-      ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => SoloGameScreen(playerName: playerName),
+          ),
+          
+          // Tamsus sluoksnis
+          Container(color: Colors.black.withOpacity(0.3)),
+
+          // 2. TURINYS
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Antraštės dalis
+                      Text(
+                        appTitle,
+                        style: TextStyle(
+                          fontSize: 48,
+                          fontWeight: FontWeight.w900,
+                          color: colorScheme.secondary,
+                          letterSpacing: 2,
+                          shadows: [
+                            Shadow(color: colorScheme.secondary.withOpacity(0.5), blurRadius: 20),
+                          ],
                         ),
-                      );
-                    },
-                    child: const Text('Žaisti vienam'),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => CreateRoomScreen(playerName: playerName),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        playerName,
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.secondary.withOpacity(0.8),
                         ),
-                      );
-                    },
-                    child: const Text('Sukurti kambarį'),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => JoinRoomScreen(playerName: playerName),
+                      ),
+                      const SizedBox(height: 50),
+
+                      // Pasirinkimų „dėžutė“
+                      Container(
+                        constraints: const BoxConstraints(maxWidth: 400),
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E1E1E).withOpacity(0.85),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(
+                            color: colorScheme.secondary.withOpacity(0.3),
+                            width: 1.5,
+                          ),
                         ),
-                      );
-                    },
-                    child: const Text('Prisijungti prie kambario'),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            ElevatedButton(
+                              onPressed: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => SoloGameScreen(playerName: playerName),
+                                  ),
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: colorScheme.primary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 18),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                              ),
+                              child: const Text('Žaisti vienam', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                            ),
+                            const SizedBox(height: 14),
+                            ElevatedButton(
+                              onPressed: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => CreateRoomScreen(playerName: playerName),
+                                  ),
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: colorScheme.primary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 18),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                              ),
+                              child: const Text('Sukurti kambarį', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                            ),
+                            const SizedBox(height: 14),
+                            ElevatedButton(
+                              onPressed: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => JoinRoomScreen(playerName: playerName),
+                                  ),
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: colorScheme.primary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 18),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                              ),
+                              child: const Text('Prisijungti prie kambario', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                            ),
+                            const SizedBox(height: 14),
+                            ElevatedButton(
+                              onPressed: () {
+                                SystemNavigator.pop();
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF121212), // Dark background
+                                foregroundColor: colorScheme.primary, // Purple text
+                                padding: const EdgeInsets.symmetric(vertical: 18),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                                side: BorderSide(color: colorScheme.primary.withOpacity(0.5)),
+                              ),
+                              child: const Text('Išeiti', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                            ),
+                          ],
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 20),
+
+                      // Personažas apačioje
+                      Container(
+                        constraints: const BoxConstraints(maxWidth: 400),
+                        child: Image.asset(
+                          'assets/pasirink.png', 
+                          width: double.infinity,
+                          fit: BoxFit.fitWidth,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: () {
-                      SystemNavigator.pop();
-                    },
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 14),
-                      child: Text('Išeiti'),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
-        ),
+
+          // Mute / Unmute mygtukas (Top Right)
+          Positioned(
+            top: 40,
+            right: 20,
+            child: ValueListenableBuilder<bool>(
+              valueListenable: audioService.isPlayingNotifier,
+              builder: (context, isPlaying, child) {
+                return IconButton(
+                  icon: Icon(
+                    isPlaying ? Icons.volume_up : Icons.volume_off,
+                    color: isPlaying ? colorScheme.secondary : Colors.grey,
+                    size: 32,
+                  ),
+                  onPressed: () {
+                    audioService.toggleBackgroundMusic();
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

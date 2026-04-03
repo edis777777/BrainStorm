@@ -183,10 +183,50 @@ class SupabaseService {
     required String roomId,
     required int gameSeed,
   }) async {
+    const categories = [
+      'Gamta', 'Geografija', 'Istorija', 'Sportas', 'Mokslas', 'Menai', 'Lietuva', 'Bendras', 'Bendras', 'Bendras'
+    ];
+    final List<int> currentQuestionIds = [];
+    final Set<int> usedIds = {};
+
+    for (final category in categories) {
+      int? qId = await _fetchSingleRoomCategoryQuestion(roomId, category, usedIds);
+
+      // Fallback
+      if (qId == null && category != 'Bendras') {
+        qId = await _fetchSingleRoomCategoryQuestion(roomId, 'Bendras', usedIds);
+      }
+
+      if (qId != null) {
+        currentQuestionIds.add(qId);
+        usedIds.add(qId);
+      }
+    }
+
     await client.from('rooms').update({
       'game_started': true,
       'game_seed': gameSeed,
+      'current_question_ids': currentQuestionIds,
     }).eq('id', roomId);
+  }
+
+  Future<int?> _fetchSingleRoomCategoryQuestion(String roomId, String category, Set<int> usedIds) async {
+    final result = await client.rpc(
+      'get_unplayed_room_questions_by_category',
+      params: <String, dynamic>{
+        'p_room_id': roomId,
+        'p_category': category,
+        'p_limit': 15, // Paimame daugiau, kad atfiltruotume jau panaudotus, net jei reikia 1
+      },
+    );
+    final rows = result as List<dynamic>? ?? [];
+    for (var row in rows) {
+      final id = int.parse(row['id'].toString());
+      if (!usedIds.contains(id)) {
+        return id;
+      }
+    }
+    return null;
   }
 
   Future<void> hostResetRound({
@@ -213,14 +253,39 @@ class SupabaseService {
   }
 
   Future<List<QuizQuestion>> fetchQuestions({
-    required String userId,
+    String? userId,
     int limit = 10,
   }) async {
+    const categories = [
+      'Gamta', 'Geografija', 'Istorija', 'Sportas', 'Mokslas', 'Menai', 'Lietuva', 'Bendras', 'Bendras', 'Bendras'
+    ];
+    final List<QuizQuestion> finalQuestions = [];
+    final Set<int> usedIds = {};
+
+    for (final category in categories) {
+      QuizQuestion? question = await _fetchSingleCategoryQuestion(userId, category, usedIds);
+
+      // Fallback
+      if (question == null && category != 'Bendras') {
+        question = await _fetchSingleCategoryQuestion(userId, 'Bendras', usedIds);
+      }
+
+      if (question != null) {
+        finalQuestions.add(question);
+        usedIds.add(question.id);
+      }
+    }
+
+    return finalQuestions;
+  }
+
+  Future<QuizQuestion?> _fetchSingleCategoryQuestion(String? userId, String category, Set<int> usedIds) async {
     final result = await client.rpc(
-      'get_unplayed_questions',
+      'get_unplayed_questions_by_category',
       params: <String, dynamic>{
         'p_user_id': userId,
-        'p_limit': limit,
+        'p_category': category,
+        'p_limit': 15, // Paimame daugiau, kad atfiltruotume jau panaudotus, net jei reikia 1
       },
     );
 
@@ -230,11 +295,28 @@ class SupabaseService {
       _ => const <dynamic>[],
     };
 
-    if (rows.isEmpty) {
-      return const <QuizQuestion>[];
+    for (var row in rows) {
+      final q = QuizQuestion.fromSupabaseRow(row as Map<String, dynamic>);
+      if (!usedIds.contains(q.id)) {
+        return q;
+      }
     }
+    return null;
+  }
 
-    final mapped = rows.cast<Map<String, dynamic>>().map((row) => QuizQuestion.fromSupabaseRow(row)).toList();
+  Future<List<QuizQuestion>> fetchQuestionsByIds(List<int> ids) async {
+    if (ids.isEmpty) return [];
+    
+    final rows = await client
+        .from('questions')
+        .select()
+        .inFilter('id', ids);
+        
+    final mapped = rows.map((row) => QuizQuestion.fromSupabaseRow(row)).toList();
+    
+    // Sort to maintain EXACTly the same sequence as in the ids list
+    mapped.sort((a, b) => ids.indexOf(a.id).compareTo(ids.indexOf(b.id)));
+    
     return mapped;
   }
 
@@ -249,6 +331,7 @@ class SupabaseService {
         .map((qid) => {
               'user_id': userId,
               'question_id': qid,
+              'played_at': DateTime.now().toUtc().toIso8601String(),
             })
         .toList();
 

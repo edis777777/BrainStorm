@@ -1,9 +1,11 @@
 class QuizQuestion {
+  final int id;
   final String question;
   final List<String> options; // must be length 4
   final int correctIndex; // 0..3
 
   const QuizQuestion({
+    this.id = 0,
     required this.question,
     required this.options,
     required this.correctIndex,
@@ -20,6 +22,7 @@ class QuizQuestion {
     final correctIndex = _parseCorrectIndex(correctAnswerRaw, options);
 
     return QuizQuestion(
+      id: int.tryParse(row['id']?.toString() ?? '') ?? 0,
       question: (row['question'] ?? '').toString(),
       options: options,
       correctIndex: correctIndex,

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+const String appTitle = 'GUDRUTIS';
+
 class AppTheme {
   static ThemeData darkVibrant() {
     const colorScheme = ColorScheme(
