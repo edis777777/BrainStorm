@@ -43,9 +43,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Attempt to start music safely.
-    audioService.autoPlayOnce();
-
     // Naudojame spalvas iš tavo Theme
     final colorScheme = Theme.of(context).colorScheme;
 
