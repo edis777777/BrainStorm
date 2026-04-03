@@ -14,9 +14,6 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Attempt to start music, it will fail silently if blocked by browser policy without user interaction.
-    audioService.autoPlayOnce();
-
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(

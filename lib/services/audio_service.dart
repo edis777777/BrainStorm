@@ -21,23 +21,6 @@ class AudioService {
   final AudioPlayer _sfxChampion = AudioPlayer()..setReleaseMode(ReleaseMode.stop)..setVolume(1.0);
 
   final ValueNotifier<bool> isPlayingNotifier = ValueNotifier(false);
-  bool _hasAttemptedAutoPlay = false;
-
-  Future<void> autoPlayOnce() async {
-    if (_hasAttemptedAutoPlay) return;
-    _hasAttemptedAutoPlay = true;
-    try {
-      await _bgmPlayer.setReleaseMode(ReleaseMode.loop);
-      await _bgmPlayer.setVolume(0.2); 
-      // Some browsers don't throw exceptions, they just silently fail or log.
-      await _bgmPlayer.resume(); // Trying to resume first
-      if (_bgmPlayer.state != PlayerState.playing) {
-        await _bgmPlayer.play(AssetSource('pirmas.mp3'));
-      }
-    } catch (e) {
-      print('Auto-play blocked or failed: $e');
-    }
-  }
 
   Future<void> playBackgroundMusic() async {
     try {
