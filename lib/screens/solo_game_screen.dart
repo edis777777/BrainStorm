@@ -399,13 +399,14 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
                                     Shadow(color: Colors.pinkAccent.withOpacity(0.8), blurRadius: 10),
                                   ],
                                 ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
+                              ), // Text
+                            ), // Center
+                          ), // InkWell
+                        ), // Material
+                      ), // AnimatedContainer
+                      ), // AspectRatio
+                    ), // FractionallySizedBox
+                  ); // Center
                 },
               ),
             ],
