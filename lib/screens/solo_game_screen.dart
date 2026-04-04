@@ -291,9 +291,10 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
   Widget _buildLobbySolo() {
     final colorScheme = Theme.of(context).colorScheme;
 
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(top: 60, left: 24, right: 24, bottom: 16),
+      child: Align(
+        alignment: Alignment.topCenter,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 520),
           child: Column(
@@ -348,23 +349,26 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
               ),
               const SizedBox(height: 48),
 
-              if (questionsLoading || (roundQuestions.isEmpty && questionsError == null))
-                const Center(child: CircularProgressIndicator(color: Colors.pinkAccent))
-              else if (questionsError != null)
-                Text(
-                  questionsError!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w800, fontSize: 18),
-                )
-              else
-                Center(
-                  child: FractionallySizedBox(
-                    widthFactor: 0.5,
-                    child: AspectRatio(
-                      aspectRatio: 1.0,
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 300),
-                        decoration: BoxDecoration(
+              Builder(
+                builder: (context) {
+                  return Center(
+                    child: FractionallySizedBox(
+                      widthFactor: 0.5,
+                      child: AspectRatio(
+                        aspectRatio: 1.0,
+                        child: (questionsLoading || (roundQuestions.isEmpty && questionsError == null))
+                            ? const Center(child: CircularProgressIndicator(color: Colors.pinkAccent))
+                            : (questionsError != null)
+                                ? Center(
+                                    child: Text(
+                                      questionsError!,
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w800, fontSize: 18),
+                                    ),
+                                  )
+                                : AnimatedContainer(
+                                    duration: const Duration(milliseconds: 300),
+                                    decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: Colors.transparent,
                           border: Border.all(color: Colors.pinkAccent, width: 2.0),
@@ -401,8 +405,9 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
                         ),
                       ),
                     ),
-                  ),
-                ),
+                  );
+                },
+              ),
             ],
           ),
         ),
