@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'create_room_screen.dart';
 import 'join_room_screen.dart';
 import 'solo_game_screen.dart';
+import 'registration_screen.dart';
 import '../theme/app_theme.dart';
 import '../services/audio_service.dart';
 
@@ -144,7 +145,11 @@ class _HomeScreenState extends State<HomeScreen> {
                             const SizedBox(height: 14),
                             ElevatedButton(
                               onPressed: () {
-                                SystemNavigator.pop();
+                                Navigator.of(context).pushReplacement(
+                                  MaterialPageRoute(
+                                    builder: (_) => const RegistrationScreen(),
+                                  ),
+                                );
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF121212), // Dark background
