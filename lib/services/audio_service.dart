@@ -4,10 +4,15 @@ import 'package:flutter/foundation.dart';
 class AudioService {
   static final AudioService _instance = AudioService._internal();
   factory AudioService() => _instance;
+
   AudioService._internal() {
     _bgmPlayer.onPlayerStateChanged.listen((state) {
       isPlayingNotifier.value = (state == PlayerState.playing);
     });
+    _bgmPlayer.setReleaseMode(ReleaseMode.loop);
+    _bgmPlayer.setVolume(0.2);
+    _bgmPlayer.setSource(AssetSource('pirmas.mp3'));
+
     // Pre-load SFX for Web so we don't have to load them on every click
     _sfxCorrect.setSource(AssetSource('taip.mp3'));
     _sfxIncorrect.setSource(AssetSource('ne.mp3'));
@@ -26,9 +31,7 @@ class AudioService {
   Future<void> playBackgroundMusic() async {
     try {
       if (isPlayingNotifier.value || isMutedByUser) return;
-      await _bgmPlayer.setReleaseMode(ReleaseMode.loop);
-      await _bgmPlayer.setVolume(0.2); 
-      await _bgmPlayer.play(AssetSource('pirmas.mp3'));
+      await _bgmPlayer.resume();
     } catch (e) {
       print('Error playing background music: $e');
     }
