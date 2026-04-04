@@ -7,10 +7,21 @@ import 'solo_game_screen.dart';
 import '../theme/app_theme.dart';
 import '../services/audio_service.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   final String playerName;
 
   const HomeScreen({super.key, required this.playerName});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    audioService.playBackgroundMusic();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +67,7 @@ class HomeScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        playerName,
+                        widget.playerName,
                         style: TextStyle(
                           fontSize: 26,
                           fontWeight: FontWeight.bold,
@@ -84,7 +95,7 @@ class HomeScreen extends StatelessWidget {
                               onPressed: () {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
-                                    builder: (_) => SoloGameScreen(playerName: playerName),
+                                    builder: (_) => SoloGameScreen(playerName: widget.playerName),
                                   ),
                                 );
                               },
@@ -101,7 +112,7 @@ class HomeScreen extends StatelessWidget {
                               onPressed: () {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
-                                    builder: (_) => CreateRoomScreen(playerName: playerName),
+                                    builder: (_) => CreateRoomScreen(playerName: widget.playerName),
                                   ),
                                 );
                               },
@@ -118,7 +129,7 @@ class HomeScreen extends StatelessWidget {
                               onPressed: () {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
-                                    builder: (_) => JoinRoomScreen(playerName: playerName),
+                                    builder: (_) => JoinRoomScreen(playerName: widget.playerName),
                                   ),
                                 );
                               },

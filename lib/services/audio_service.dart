@@ -21,9 +21,11 @@ class AudioService {
   final AudioPlayer _sfxChampion = AudioPlayer()..setReleaseMode(ReleaseMode.stop)..setVolume(1.0);
 
   final ValueNotifier<bool> isPlayingNotifier = ValueNotifier(false);
+  bool isMutedByUser = false;
 
   Future<void> playBackgroundMusic() async {
     try {
+      if (isPlayingNotifier.value || isMutedByUser) return;
       await _bgmPlayer.setReleaseMode(ReleaseMode.loop);
       await _bgmPlayer.setVolume(0.2); 
       await _bgmPlayer.play(AssetSource('pirmas.mp3'));
@@ -50,8 +52,10 @@ class AudioService {
 
   Future<void> toggleBackgroundMusic() async {
     if (isPlayingNotifier.value) {
+      isMutedByUser = true;
       await pauseBackgroundMusic();
     } else {
+      isMutedByUser = false;
       await playBackgroundMusic();
     }
   }

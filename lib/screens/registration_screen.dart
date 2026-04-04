@@ -17,6 +17,12 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   bool isSaving = false;
 
   @override
+  void initState() {
+    super.initState();
+    audioService.playBackgroundMusic(); // Groti foninę muziką atsivertus pirmą langą
+  }
+
+  @override
   void dispose() {
     controller.dispose();
     super.dispose();

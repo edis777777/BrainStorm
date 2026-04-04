@@ -186,15 +186,39 @@ class SupabaseService {
     const categories = [
       'Gamta', 'Geografija', 'Istorija', 'Sportas', 'Mokslas', 'Menai', 'Lietuva', 'Bendras', 'Bendras', 'Bendras'
     ];
+    final distinctCategories = ["Gamta", "Geografija", "Istorija", "Sportas", "Mokslas", "Menai", "Lietuva", "Bendras"];
+    
+    // Siunčiame užklausas visoms reikalingoms kategorijoms lygiagrečiai!
+    final futures = distinctCategories.map((cat) {
+      final lim = cat == 'Bendras' ? 10 : 3;
+      return _fetchMultipleRoomCategoryQuestionIds(roomId, cat, lim);
+    });
+    final resultsList = await Future.wait(futures);
+    
+    final Map<String, List<int>> pools = {};
+    for (int i = 0; i < distinctCategories.length; i++) {
+      pools[distinctCategories[i]] = resultsList[i];
+    }
+    
     final List<int> currentQuestionIds = [];
     final Set<int> usedIds = {};
 
     for (final category in categories) {
-      int? qId = await _fetchSingleRoomCategoryQuestion(roomId, category, usedIds);
+      int? getFromPool(String c) {
+        final pool = pools[c] ?? [];
+        for (final qId in pool) {
+          if (!usedIds.contains(qId)) {
+            return qId;
+          }
+        }
+        return null;
+      }
+
+      int? qId = getFromPool(category);
 
       // Fallback
       if (qId == null && category != 'Bendras') {
-        qId = await _fetchSingleRoomCategoryQuestion(roomId, 'Bendras', usedIds);
+        qId = getFromPool('Bendras');
       }
 
       if (qId != null) {
@@ -210,23 +234,17 @@ class SupabaseService {
     }).eq('id', roomId);
   }
 
-  Future<int?> _fetchSingleRoomCategoryQuestion(String roomId, String category, Set<int> usedIds) async {
+  Future<List<int>> _fetchMultipleRoomCategoryQuestionIds(String roomId, String category, int limit) async {
     final result = await client.rpc(
       'get_unplayed_room_questions_by_category',
       params: <String, dynamic>{
         'p_room_id': roomId,
         'p_category': category,
-        'p_limit': 15, // Paimame daugiau, kad atfiltruotume jau panaudotus, net jei reikia 1
+        'p_limit': limit,
       },
     );
     final rows = result as List<dynamic>? ?? [];
-    for (var row in rows) {
-      final id = int.parse(row['id'].toString());
-      if (!usedIds.contains(id)) {
-        return id;
-      }
-    }
-    return null;
+    return rows.map((r) => int.parse(r['id'].toString())).toList();
   }
 
   Future<void> hostResetRound({
@@ -259,15 +277,39 @@ class SupabaseService {
     const categories = [
       'Gamta', 'Geografija', 'Istorija', 'Sportas', 'Mokslas', 'Menai', 'Lietuva', 'Bendras', 'Bendras', 'Bendras'
     ];
+    final distinctCategories = ["Gamta", "Geografija", "Istorija", "Sportas", "Mokslas", "Menai", "Lietuva", "Bendras"];
+    
+    // Užkrauname visas kategorijas PARALELIAI (vienu metu)
+    final futures = distinctCategories.map((cat) {
+      final lim = cat == 'Bendras' ? 10 : 3;
+      return _fetchMultipleCategoryQuestions(userId, cat, lim);
+    });
+    final resultsList = await Future.wait(futures);
+    
+    final Map<String, List<QuizQuestion>> pools = {};
+    for (int i = 0; i < distinctCategories.length; i++) {
+      pools[distinctCategories[i]] = resultsList[i];
+    }
+    
     final List<QuizQuestion> finalQuestions = [];
     final Set<int> usedIds = {};
 
     for (final category in categories) {
-      QuizQuestion? question = await _fetchSingleCategoryQuestion(userId, category, usedIds);
+      QuizQuestion? getFromPool(String c) {
+        final pool = pools[c] ?? [];
+        for (final q in pool) {
+          if (!usedIds.contains(q.id)) {
+            return q;
+          }
+        }
+        return null;
+      }
+
+      QuizQuestion? question = getFromPool(category);
 
       // Fallback
       if (question == null && category != 'Bendras') {
-        question = await _fetchSingleCategoryQuestion(userId, 'Bendras', usedIds);
+        question = getFromPool('Bendras');
       }
 
       if (question != null) {
@@ -279,13 +321,13 @@ class SupabaseService {
     return finalQuestions;
   }
 
-  Future<QuizQuestion?> _fetchSingleCategoryQuestion(String? userId, String category, Set<int> usedIds) async {
+  Future<List<QuizQuestion>> _fetchMultipleCategoryQuestions(String? userId, String category, int limit) async {
     final result = await client.rpc(
       'get_unplayed_questions_by_category',
       params: <String, dynamic>{
         'p_user_id': userId,
         'p_category': category,
-        'p_limit': 15, // Paimame daugiau, kad atfiltruotume jau panaudotus, net jei reikia 1
+        'p_limit': limit,
       },
     );
 
@@ -295,13 +337,7 @@ class SupabaseService {
       _ => const <dynamic>[],
     };
 
-    for (var row in rows) {
-      final q = QuizQuestion.fromSupabaseRow(row as Map<String, dynamic>);
-      if (!usedIds.contains(q.id)) {
-        return q;
-      }
-    }
-    return null;
+    return rows.map((r) => QuizQuestion.fromSupabaseRow(r as Map<String, dynamic>)).toList();
   }
 
   Future<List<QuizQuestion>> fetchQuestionsByIds(List<int> ids) async {
@@ -335,6 +371,10 @@ class SupabaseService {
             })
         .toList();
 
-    await client.from('played_questions').insert(records);
+    try {
+      await client.from('played_questions').insert(records);
+    } catch (e) {
+      // Ignoruoti klaidas, pavyzdžiui jei toks klausimas jau išsaugotas (Duplicate key) ar nėra interneto.
+    }
   }
 }

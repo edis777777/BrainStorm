@@ -293,7 +293,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
           child: Row(
             children: [
               Expanded(
-                child: OutlinedButton(
+                child: ElevatedButton(
                   onPressed: widget.isHost && allPlayersFinished
                       ? () async {
                           didNavigateBackToLobby = true;
@@ -317,12 +317,12 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                           );
                         }
                       : null,
-                  child: const Text('Žaisti dar kartą'),
+                  child: const Text('ŽAISTI DAR KARTĄ'),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: ElevatedButton(
+                child: OutlinedButton(
                   onPressed: () async {
                     await supabase.leaveRoom(roomId: widget.roomId, userId: widget.userId);
                     if (!mounted) return;
@@ -332,7 +332,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                       ),
                     );
                   },
-                  child: const Text('Baigti'),
+                  child: const Text('BAIGTI'),
                 ),
               ),
             ],

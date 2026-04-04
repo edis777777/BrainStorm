@@ -40,8 +40,19 @@ class _SpeechBubblePainter extends CustomPainter {
     canvas.drawPath(path, paint);
   }
 
-  @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class SoloAttempt {
+  final int attemptNumber;
+  final int correctCount;
+  final int totalTimeMs;
+
+  SoloAttempt({
+    required this.attemptNumber,
+    required this.correctCount,
+    required this.totalTimeMs,
+  });
 }
 
 class SoloGameScreen extends ConsumerStatefulWidget {
@@ -70,6 +81,7 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
   int? selectedOptionIndex;
   bool finished = false;
   bool started = false;
+  List<SoloAttempt> pastAttempts = [];
 
   Future<void> _loadQuestions() async {
     final supabase = ref.read(supabaseServiceProvider);
@@ -113,13 +125,13 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
     finished = false;
     started = false;
 
+    audioService.playBackgroundMusic();
     await _loadQuestions();
   }
 
   @override
   void initState() {
     super.initState();
-    audioService.stopBackgroundMusic();
     _loadQuestions();
   }
 
@@ -131,6 +143,7 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
 
   void start() {
     started = true;
+    audioService.stopBackgroundMusic();
     stopwatch.start();
     uiTimer?.cancel();
     uiTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
@@ -184,8 +197,29 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
       });
       uiTimer?.cancel();
       
-      // Vieno žaidėjo režime žaidėjas visada finišuoja pirmas
-      audioService.playChampionSound();
+      final currentAttempt = SoloAttempt(
+        attemptNumber: pastAttempts.length + 1,
+        correctCount: correctCount,
+        totalTimeMs: totalTimeMsAtLastAnswer,
+      );
+      
+      final sortedAttempts = List<SoloAttempt>.from(pastAttempts)..add(currentAttempt);
+      sortedAttempts.sort((a, b) {
+        int cmp = b.correctCount.compareTo(a.correctCount);
+        if (cmp != 0) return cmp;
+        return a.totalTimeMs.compareTo(b.totalTimeMs);
+      });
+
+      final isFirstGame = pastAttempts.isEmpty;
+      final isNewBest = !isFirstGame && sortedAttempts.first == currentAttempt;
+
+      setState(() {
+        pastAttempts.add(currentAttempt);
+      });
+
+      if (!isFirstGame && isNewBest) {
+        audioService.playChampionSound();
+      }
 
       final userId = await ref.read(supabaseServiceProvider).signInAnonymously();
       final qIds = roundQuestions.map<int>((q) => q.id).toList();
@@ -509,15 +543,40 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
   }
 
   Widget _buildLeaderboard() {
+    final sortedAttempts = List<SoloAttempt>.from(pastAttempts);
+    sortedAttempts.sort((a, b) {
+      int cmp = b.correctCount.compareTo(a.correctCount);
+      if (cmp != 0) return cmp;
+      return a.totalTimeMs.compareTo(b.totalTimeMs);
+    });
+
+    final currentAttempt = pastAttempts.isNotEmpty ? pastAttempts.last : null;
+    final isFirstGame = pastAttempts.length == 1;
+    final isNewBest = !isFirstGame && currentAttempt != null && sortedAttempts.first == currentAttempt;
+
+    String message;
+    String mascotImage;
+
+    if (isFirstGame) {
+      message = 'PUIKU, BET AR GALI APLENKTI SAVE? BANDYK DAR KARTĄ.';
+      mascotImage = 'assets/saunuolis.png';
+    } else if (isNewBest) {
+      message = 'ŠAUNUOLIS, TU APLENKEI SAVE !!! BANDYK DAR KARTĄ.';
+      mascotImage = 'assets/saunuolis.png';
+    } else {
+      message = 'UPS ! NEPAVYKO 😢 BANDYK DAR KARTĄ.';
+      mascotImage = 'assets/nenusimink.png';
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
           child: Text(
-            'SVEIKINAME ŠIO ŽAIDIMO NUGALĖTOJĄ, BANDYKITE DAR KARTĄ',
+            message,
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               color: Colors.cyanAccent,
               fontSize: 18,
               fontWeight: FontWeight.w900,
@@ -526,16 +585,23 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
           ),
         ),
         Expanded(
-          child: ListView(
+          child: ListView.builder(
             padding: const EdgeInsets.symmetric(horizontal: 18),
-            children: [
-              _leaderRow(rank: 1, name: widget.playerName, correct: correctCount, ms: totalTimeMsAtLastAnswer),
-            ],
+            itemCount: sortedAttempts.length,
+            itemBuilder: (context, index) {
+              final attempt = sortedAttempts[index];
+              return _leaderRow(
+                rank: index + 1,
+                name: '${attempt.attemptNumber} BANDYMAS',
+                correct: attempt.correctCount,
+                ms: attempt.totalTimeMs,
+              );
+            },
           ),
         ),
         const SizedBox(height: 16),
         Expanded(
-          child: Image.asset('assets/saunuolis.png', fit: BoxFit.contain),
+          child: Image.asset(mascotImage, fit: BoxFit.contain),
         ),
         _bottomActions(),
       ],
@@ -551,8 +617,21 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
     final secs = ms / 1000.0;
     final formattedSecs = secs.toStringAsFixed(1).replaceAll('.', ',');
 
+    Color bgColor;
+    Color textColor = Colors.black;
+    if (rank == 1) {
+      bgColor = const Color(0xFFFFD700); // Gold
+    } else if (rank == 2) {
+      bgColor = const Color(0xFFEEEEEE); // Lighter Silver
+    } else if (rank == 3) {
+      bgColor = const Color(0xFFCD7F32); // Bronze
+    } else {
+      bgColor = Colors.grey.shade800;
+      textColor = Colors.white; // Better contrast
+    }
+
     return Card(
-      color: const Color(0xFFFFD700), // Gold
+      color: bgColor,
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: Padding(
@@ -563,23 +642,23 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
               width: 32,
               child: Text(
                 '$rank.',
-                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Colors.black),
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: textColor),
               ),
             ),
             Expanded(
               child: Text(
                 name,
-                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Colors.black),
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: textColor),
               ),
             ),
             Text(
               '$correct/10',
-              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Colors.black),
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: textColor),
             ),
             const SizedBox(width: 12),
             Text(
               formattedSecs,
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: Colors.black),
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: textColor),
             ),
           ],
         ),
@@ -595,22 +674,22 @@ class _SoloGameScreenState extends ConsumerState<SoloGameScreen> {
         child: Row(
           children: [
             Expanded(
-              child: OutlinedButton(
+              child: ElevatedButton(
                 onPressed: () async {
                   await resetRound();
                 },
-                child: const Text('Žaisti dar kartą'),
+                child: const Text('ŽAISTI DAR KARTĄ'),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: ElevatedButton(
+              child: OutlinedButton(
                 onPressed: () => Navigator.of(context).pushReplacement(
                   MaterialPageRoute(
                     builder: (_) => HomeScreen(playerName: widget.playerName),
                   ),
                 ),
-                child: const Text('Baigti'),
+                child: const Text('BAIGTI'),
               ),
             ),
           ],
